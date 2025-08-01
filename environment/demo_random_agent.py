@@ -280,7 +280,7 @@ class RandomAgentDemo:
         if self.record_gif and self.frames:
             self.save_gif("beehive_random_agent_demo.gif", fps=8)
         
-        print(f"\n Demo Complete!")
+        print("\n Demo Complete!")
         print(f"   Total demonstration time: ~{self.total_steps * 0.15:.1f} seconds")
         print(f"   Thank you for watching the Beehive Management RL Environment!")
     
