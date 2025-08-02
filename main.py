@@ -89,7 +89,7 @@ def run_best_model():
     """Load the best A2C model and simulate it in the environment"""
     pygame.init()  # Initialize Pygame
     model_name = "A2C"
-    model_path = "models/pg/best_model"
+    model_path = "models/pg/c_model"
     
     print(f"\nLoading best model: {model_name} from {model_path}")
     
