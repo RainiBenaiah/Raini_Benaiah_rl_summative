@@ -87,7 +87,8 @@ class BeehiveRenderer:
 
     def get_hive_color(self, hive: HiveState) -> Tuple[int, int, int]:
         """Get hive color based on health and status"""
-        if hive.bee_population < 1000:
+        population = max(0, hive.bee_population) if hive.bee_population is not None else 0
+        if population < 1000:
             return Colors.HIVE_DEAD
         elif hive.health_score >= 80:
             return Colors.HIVE_EXCELLENT
@@ -102,17 +103,14 @@ class BeehiveRenderer:
 
     def draw_background_environment(self, env: BeehiveManagementEnv):
         """Draw the environmental background with zones and features"""
-        # Fill background
         world_rect = pygame.Rect(0, self.top_panel_height, self.world_panel_width,
                                 self.height - self.top_panel_height)
         pygame.draw.rect(self.screen, Colors.GRASS, world_rect)
 
-        # Draw nectar zones
         for zone_x, zone_y, richness in env.nectar_zones:
             screen_x, screen_y = self.world_to_screen(zone_x, zone_y)
             radius = int(20 * richness) + 10
 
-            # Create gradient effect for nectar zones
             for i in range(radius, 0, -2):
                 alpha = int(100 * richness * (i / radius))
                 color = (*Colors.NECTAR_ZONE, alpha)
@@ -120,18 +118,14 @@ class BeehiveRenderer:
                 pygame.draw.circle(circle_surf, color, (i, i), i)
                 self.screen.blit(circle_surf, (screen_x - i, screen_y - i))
 
-        # Draw water sources
         for water_x, water_y in env.water_sources:
             screen_x, screen_y = self.world_to_screen(water_x, water_y)
-
-            # Animated water effect
             wave_offset = math.sin(self.time_step * 0.1) * 3
             pygame.draw.circle(self.screen, Colors.WATER,
                              (screen_x, screen_y), 15 + int(wave_offset))
             pygame.draw.circle(self.screen, (200, 230, 255),
                              (screen_x - 3, screen_y - 3), 8)
 
-        # Draw protected areas (corners)
         protected_areas = [(15, 15), (85, 15), (15, 85), (85, 85)]
         for px, py in protected_areas:
             screen_x, screen_y = self.world_to_screen(px, py)
@@ -143,22 +137,18 @@ class BeehiveRenderer:
         screen_x, screen_y = self.world_to_screen(hive.location[0], hive.location[1])
         hive_color = self.get_hive_color(hive)
 
-        # Draw hive base
-        base_size = 20 + int(hive.bee_population / 5000)
-        base_size = min(base_size, 40)  # Cap maximum size
+        population = max(0, hive.bee_population) if hive.bee_population is not None else 0
+        base_size = 20 + int(population / 5000)
+        base_size = min(base_size, 40)
 
         if selected:
-            # Pulsing selection indicator
             pulse = int(10 * (1 + math.sin(self.time_step * 0.2)))
             pygame.draw.circle(self.screen, Colors.WHITE,
                              (screen_x, screen_y), base_size + pulse, 3)
 
-        # Main hive body
         pygame.draw.circle(self.screen, hive_color, (screen_x, screen_y), base_size)
         pygame.draw.circle(self.screen, Colors.BLACK, (screen_x, screen_y), base_size, 2)
 
-        # Hive details
-        # Queen indicator
         if hive.queen_present:
             crown_points = [
                 (screen_x - 6, screen_y - base_size + 5),
@@ -169,38 +159,31 @@ class BeehiveRenderer:
             ]
             pygame.draw.polygon(self.screen, (255, 215, 0), crown_points)
 
-        # Health bar
         bar_width = base_size * 2
         bar_height = 4
         bar_x = screen_x - bar_width // 2
         bar_y = screen_y + base_size + 5
 
-        # Background bar
         pygame.draw.rect(self.screen, Colors.BLACK,
-                        (bar_x, bar_y, bar_width, bar_height))
+                        (int(bar_x), int(bar_y), int(bar_width), int(bar_height)))
 
-        # Health fill
         health_width = int((hive.health_score / 100) * bar_width)
         health_color = hive_color
-        pygame.draw.rect(self.screen, health_color,
-                        (bar_x, bar_y, health_width, bar_height))
+        if health_width > 0:  # Only draw if width is positive
+            pygame.draw.rect(self.screen, health_color,
+                            (int(bar_x), int(bar_y), int(health_width), int(bar_height)))
 
-        # Sound visualization
         if hive.hive_id in self.sound_waves:
             self.draw_sound_waves(screen_x, screen_y, hive.sound_activity)
 
-        # Activity indicators
         if hive.disease_level > 0.3:
-            # Disease warning
             pygame.draw.circle(self.screen, (255, 0, 0),
                              (screen_x + base_size - 5, screen_y - base_size + 5), 3)
 
         if hive.pest_level > 0.3:
-            # Pest warning
             pygame.draw.circle(self.screen, (255, 165, 0),
                              (screen_x - base_size + 5, screen_y - base_size + 5), 3)
 
-        # Hive ID
         id_text = self.font_small.render(f"H{hive.hive_id}", True, Colors.WHITE)
         self.screen.blit(id_text, (screen_x - 8, screen_y + base_size + 15))
 
@@ -211,7 +194,7 @@ class BeehiveRenderer:
             wave_radius = 30 + (i * 15) + (self.time_step * 2) % 30
             alpha = int(255 * activity * (1 - i / wave_count))
 
-            if alpha > 20:  # Only draw visible waves
+            if alpha > 20:
                 wave_surf = pygame.Surface((wave_radius * 2, wave_radius * 2), pygame.SRCALPHA)
                 pygame.draw.circle(wave_surf, (*Colors.BUTTON_NORMAL, alpha),
                                  (wave_radius, wave_radius), wave_radius, 2)
@@ -219,7 +202,6 @@ class BeehiveRenderer:
 
     def draw_bee_particles(self, hives: List[HiveState]):
         """Draw animated bee particles flying between hives and nectar sources"""
-        # Update existing particles
         for particle in self.bee_particles[:]:
             particle['x'] += particle['vx']
             particle['y'] += particle['vy']
@@ -228,15 +210,13 @@ class BeehiveRenderer:
             if particle['life'] <= 0:
                 self.bee_particles.remove(particle)
             else:
-                # Draw particle
                 screen_x, screen_y = self.world_to_screen(particle['x'], particle['y'])
                 size = max(1, int(particle['life'] / 20))
                 pygame.draw.circle(self.screen, (255, 255, 0), (screen_x, screen_y), size)
 
-        # Generate new particles from active hives
         for hive in hives:
-            if hive.bee_population > 5000 and random.random() < hive.sound_activity * 0.1:
-                # Create new bee particle
+            population = max(0, hive.bee_population) if hive.bee_population is not None else 0
+            if population > 5000 and random.random() < hive.sound_activity * 0.1:
                 angle = random.uniform(0, 2 * math.pi)
                 speed = random.uniform(0.5, 2.0)
 
@@ -253,24 +233,22 @@ class BeehiveRenderer:
         """Draw visual effect for the current action"""
         screen_x, screen_y = self.world_to_screen(hive.location[0], hive.location[1])
 
-        # Determine action category and color
-        if action <= 9:  # Location actions
+        if action <= 9:
             color = Colors.ACTION_MOVE
             effect_type = "MOVE"
-        elif action <= 29:  # Maintenance actions
+        elif action <= 29:
             color = Colors.ACTION_MAINTAIN
             effect_type = "MAINTAIN"
-        elif action <= 49:  # Environmental/Monitoring
+        elif action <= 49:
             color = Colors.ACTION_MONITOR
             effect_type = "MONITOR"
-        elif action >= 60 and action <= 69:  # Emergency
+        elif action >= 60 and action <= 69:
             color = Colors.ACTION_EMERGENCY
             effect_type = "EMERGENCY"
         else:
             color = Colors.BUTTON_NORMAL
             effect_type = "OTHER"
 
-        # Add action effect to list
         effect = {
             'x': screen_x,
             'y': screen_y,
@@ -293,7 +271,6 @@ class BeehiveRenderer:
             alpha = int(255 * (effect['life'] / 60))
             radius = 60 - effect['life']
 
-            # Draw expanding circle
             if alpha > 10:
                 effect_surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
                 pygame.draw.circle(effect_surf, (*effect['color'], alpha),
@@ -301,7 +278,6 @@ class BeehiveRenderer:
                 self.screen.blit(effect_surf,
                                (effect['x'] - radius, effect['y'] - radius))
 
-            # Draw action text
             if effect['life'] > 30:
                 text = self.font_small.render(effect['type'], True, effect['color'])
                 self.screen.blit(text, (effect['x'] - 20, effect['y'] - 50))
@@ -315,14 +291,12 @@ class BeehiveRenderer:
 
         y_offset = 20
 
-        # Title
         title = self.font_large.render("Beehive Management", True, Colors.TEXT_PRIMARY)
         self.screen.blit(title, (panel_x + 10, y_offset))
         y_offset += 40
 
-        # Environment stats
         season_names = ['Spring', 'Summer', 'Autumn', 'Winter']
-        season_index = min(3, max(0, env.current_step // 91))  # Clamp to valid range
+        season_index = min(3, max(0, env.current_step // 91))
 
         stats = [
             f"Step: {env.current_step}/{env.max_steps}",
@@ -339,14 +313,12 @@ class BeehiveRenderer:
 
         y_offset += 20
 
-        # Last action
         if last_action is not None:
             action_title = self.font_medium.render("Last Action:", True, Colors.TEXT_PRIMARY)
             self.screen.blit(action_title, (panel_x + 10, y_offset))
             y_offset += 20
 
             action_name = ActionType(last_action).name.replace('_', ' ')
-            # Split long action names
             words = action_name.split()
             lines = []
             current_line = []
@@ -371,18 +343,16 @@ class BeehiveRenderer:
 
         y_offset += 20
 
-        # Individual hive information
         hive_title = self.font_medium.render("Hive Details:", True, Colors.TEXT_PRIMARY)
         self.screen.blit(hive_title, (panel_x + 10, y_offset))
         y_offset += 25
 
         for i, hive in enumerate(env.hives):
-            if y_offset > self.height - 100:  # Prevent overflow
+            if y_offset > self.height - 100:
                 break
 
             hive_color = self.get_hive_color(hive)
 
-            # Hive header
             header = f"Hive {hive.hive_id}:"
             if i == env.selected_hive_id:
                 header += " [SELECTED]"
@@ -391,10 +361,10 @@ class BeehiveRenderer:
             self.screen.blit(text, (panel_x + 10, y_offset))
             y_offset += 18
 
-            # Hive stats
+            population = max(0, hive.bee_population) if hive.bee_population is not None else 0
             hive_stats = [
                 f"  Health: {hive.health_score:.0f}%",
-                f"  Population: {hive.bee_population:,}",
+                f"  Population: {population:,}",
                 f"  Honey: {hive.honey_production:.1f}kg",
                 f"  Queen: {'Yes' if hive.queen_present else 'No'}",
                 f"  Food: {hive.food_stores:.1f}kg"
@@ -412,67 +382,54 @@ class BeehiveRenderer:
         panel_rect = pygame.Rect(0, 0, self.width, self.top_panel_height)
         pygame.draw.rect(self.screen, Colors.PANEL_BG, panel_rect)
 
-        # Progress bar
-        progress = env.current_step / env.max_steps
+        base_env = getattr(env, "env", env)
+        progress = base_env.current_step / base_env.max_steps
         progress_width = int((self.world_panel_width - 40) * progress)
 
         pygame.draw.rect(self.screen, Colors.BLACK, (20, 20, self.world_panel_width - 40, 20))
         pygame.draw.rect(self.screen, Colors.BUTTON_NORMAL, (20, 20, progress_width, 20))
 
-        # Progress text
-        progress_text = f"Day {env.current_step} / {env.max_steps}"
+        progress_text = f"Day {base_env.current_step} / {base_env.max_steps}"
         text = self.font_medium.render(progress_text, True, Colors.TEXT_PRIMARY)
         self.screen.blit(text, (25, 22))
 
-        # Season indicator
         season_names = ["🌸 Spring", "☀️ Summer", "🍂 Autumn", "❄️ Winter"]
-        season_index = min(3, max(0, env.current_step // 91))  # Clamp to valid range
+        season_index = min(3, max(0, base_env.current_step // 91))
         season_text = self.font_medium.render(season_names[season_index], True, Colors.TEXT_PRIMARY)
         self.screen.blit(season_text, (self.world_panel_width - 150, 22))
 
     def render(self, env: BeehiveManagementEnv, last_action: Optional[int] = None,
                last_reward: float = 0) -> np.ndarray:
         """Main render function"""
-        # Clear screen
         self.screen.fill(Colors.BACKGROUND)
 
-        # Draw components
         self.draw_top_panel(env)
         self.draw_background_environment(env)
 
-        # Draw hives
         for i, hive in enumerate(env.hives):
             selected = (i == env.selected_hive_id)
             self.draw_hive(hive, selected)
 
-        # Draw animations
         self.draw_bee_particles(env.hives)
         self.draw_action_effects()
 
-        # Draw action effect for current action
         if last_action is not None and env.selected_hive_id < len(env.hives):
             self.draw_action_effect(last_action, env.hives[env.selected_hive_id])
 
-        # Draw info panel
         self.draw_info_panel(env, last_action, last_reward)
 
-        # Update display
         pygame.display.flip()
-        self.clock.tick(30)  # 30 FPS
+        self.clock.tick(30)
 
-        # Update time step for animations
         self.time_step += 1
 
-        # Return RGB array if needed
         return pygame.surfarray.array3d(self.screen).transpose((1, 0, 2))
 
     def close(self):
         """Clean up resources"""
         pygame.quit()
 
-# Example usage and testing
 if __name__ == "__main__":
-    # Test the renderer
     env = BeehiveManagementEnv(num_hives=4, render_mode="human")
     renderer = BeehiveRenderer()
 
@@ -485,7 +442,7 @@ if __name__ == "__main__":
     paused = False
     last_action = None
     last_reward = 0
-    max_test_steps = 100  # Auto-quit after 100 steps
+    max_test_steps = 100
     test_step_count = 0
 
     while running and test_step_count < max_test_steps:
@@ -500,7 +457,6 @@ if __name__ == "__main__":
                     print("Paused" if paused else "Resumed")
 
         if not paused:
-            # Take random action
             action = env.action_space.sample()
             obs, reward, terminated, truncated, info = env.step(action)
 
@@ -517,7 +473,6 @@ if __name__ == "__main__":
                 last_action = None
                 last_reward = 0
 
-        # Render
         renderer.render(env, last_action, last_reward)
 
     print(f"Test completed after {test_step_count} steps!")

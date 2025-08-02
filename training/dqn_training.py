@@ -6,107 +6,160 @@ from stable_baselines3.common.monitor import Monitor
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'environment')))
+import gymnasium as gym
 from custom_env import BeehiveManagementEnv
+from rendering import BeehiveRenderer
+import os
+import imageio
+import matplotlib.pyplot as plt
 
-def train_dqn(save_path="models/dqn/dqn_model"):
-    """Train DQN model on BeehiveManagementEnv"""
-    # Create and wrap environment
-    env = BeehiveManagementEnv(num_hives=4)
-    env = Monitor(env)
+class DQNTraining:
+    """Class to handle DQN training, evaluation, and visualization"""
+    
+    def __init__(self, num_hives=4, save_path="models/dqn/dqn_model"):
+        self.save_path = save_path
+        self.env = Monitor(BeehiveManagementEnv(num_hives=num_hives, render_mode="human"))
+        self.eval_env = Monitor(BeehiveManagementEnv(num_hives=num_hives, render_mode="human"))
+        self.renderer = BeehiveRenderer(width=1200, height=800)
+        self.episode_rewards = []
+        self.training_losses = []
+        
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        os.makedirs("plots", exist_ok=True)
+        os.makedirs("gifs", exist_ok=True)
 
-    # Define evaluation environment
-    eval_env = BeehiveManagementEnv(num_hives=4)
-    eval_env = Monitor(eval_env)
+    def train(self):
+        """Train DQN model"""
+        hyperparams = {
+            "learning_rate": 1e-3,
+            "buffer_size": 100000,
+            "batch_size": 64,
+            "gamma": 0.99,
+            "exploration_fraction": 0.1,
+            "exploration_final_eps": 0.02,
+            "learning_starts": 1000,
+            "target_update_interval": 1000,
+            "train_freq": 4,
+        }
 
-    # Create directory for saving models
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        model = DQN(
+            policy="MlpPolicy",
+            env=self.env,
+            **hyperparams,
+            verbose=1,
+            tensorboard_log="./tensorboard_logs/"
+        )
 
-    # Define hyperparameters
-    hyperparams = {
-        "learning_rate": 1e-3,
-        "buffer_size": 100000,
-        "batch_size": 64,
-        "gamma": 0.99,
-        "exploration_fraction": 0.1,
-        "exploration_final_eps": 0.02,
-        "learning_starts": 1000,
-        "target_update_interval": 1000,
-        "train_freq": 4,
-    }
+        class LossCallback(EvalCallback):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.training_losses = []
 
-    # Initialize DQN model
-    model = DQN(
-        policy="MlpPolicy",
-        env=env,
-        **hyperparams,
-        verbose=1,
-        tensorboard_log="./tensorboard_logs/"
-    )
+            def _on_step(self) -> bool:
+                if self.locals.get('loss') is not None:
+                    self.training_losses.append(self.locals['loss'])
+                return super()._on_step()
 
-    # Define callbacks
-    stop_callback = StopTrainingOnRewardThreshold(reward_threshold=500, verbose=1)
-    eval_callback = EvalCallback(
-        eval_env,
-        best_model_save_path=os.path.dirname(save_path),
-        log_path="./eval_logs/",
-        eval_freq=10000,
-        n_eval_episodes=5,
-        deterministic=True,
-        callback_after_eval=stop_callback
-    )
+        stop_callback = StopTrainingOnRewardThreshold(reward_threshold=500, verbose=1)
+        eval_callback = LossCallback(
+            self.eval_env,
+            best_model_save_path=os.path.dirname(self.save_path),
+            log_path="./eval_logs/",
+            eval_freq=10000,
+            n_eval_episodes=5,
+            deterministic=True,
+            callback_after_eval=stop_callback
+        )
 
-    # Train model
-    model.learn(
-        total_timesteps=100000,
-        callback=eval_callback,
-        progress_bar=True
-    )
+        model.learn(
+            total_timesteps=100000,
+            callback=eval_callback,
+            progress_bar=True
+        )
 
-    # Save the final model
-    model.save(save_path)
-    print(f"DQN model saved to {save_path}")
+        model.save(self.save_path)
+        self.training_losses = eval_callback.training_losses
+        print(f"DQN model saved to {self.save_path}")
 
-    return model
+        return model
 
-def evaluate_dqn(model, env, n_episodes=5):
-    """Evaluate trained DQN model"""
-    episode_rewards = []
-    episode_lengths = []
+    def evaluate(self, model, n_episodes=5):
+        """Evaluate trained DQN model"""
+        episode_rewards = []
+        episode_lengths = []
 
-    for _ in range(n_episodes):
-        obs, _ = env.reset()
-        total_reward = 0
-        steps = 0
-        done = False
+        for _ in range(n_episodes):
+            obs, _ = self.eval_env.reset()
+            total_reward = 0
+            steps = 0
+            done = False
 
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, terminated, truncated, _ = env.step(action)
-            total_reward += reward
-            steps += 1
-            done = terminated or truncated
+            while not done:
+                action, _ = model.predict(obs, deterministic=True)
+                obs, reward, terminated, truncated, _ = self.eval_env.step(action)
+                total_reward += reward
+                steps += 1
+                done = terminated or truncated
 
-        episode_rewards.append(total_reward)
-        episode_lengths.append(steps)
+            episode_rewards.append(total_reward)
+            episode_lengths.append(steps)
+            self.episode_rewards.append(total_reward)
 
-    mean_reward = np.mean(episode_rewards)
-    std_reward = np.std(episode_rewards)
-    mean_length = np.mean(episode_lengths)
+        return {
+            "mean_reward": np.mean(episode_rewards),
+            "std_reward": np.std(episode_rewards),
+            "mean_length": np.mean(episode_lengths),
+            "episode_rewards": episode_rewards
+        }
 
-    return {
-        "mean_reward": mean_reward,
-        "std_reward": std_reward,
-        "mean_length": mean_length,
-        "episode_rewards": episode_rewards
-    }
+    def record_gif(self, model, episodes=3, max_steps=1000):
+        """Record GIF for specified number of episodes"""
+        for ep in range(episodes):
+            frames = []
+            obs, _ = self.eval_env.reset()
+            done = False
+            steps = 0
+            total_reward = 0
+
+            while not done and steps < max_steps:
+                action, _ = model.predict(obs, deterministic=True)
+                obs, reward, terminated, truncated, _ = self.eval_env.step(action)
+                total_reward += reward
+                frame = self.renderer.render(self.eval_env.unwrapped, action, reward)
+                frames.append(np.transpose(frame, (1, 0, 2)))
+                steps += 1
+                done = terminated or truncated
+
+            filename = f"gifs/dqn_episode_{ep+1}.gif"
+            imageio.mimsave(filename, [frame.astype(np.uint8) for frame in frames], fps=8)
+            print(f"DQN GIF for episode {ep+1} saved as {filename}, Total Reward: {total_reward:.2f}")
+
+    def plot_results(self):
+        """Plot cumulative rewards and training stability"""
+        plt.figure(figsize=(10, 5))
+        plt.plot(np.cumsum(self.episode_rewards), label="DQN Cumulative Reward")
+        plt.xlabel("Episode")
+        plt.ylabel("Cumulative Reward")
+        plt.title("DQN Cumulative Reward Over Episodes")
+        plt.legend()
+        plt.savefig("plots/dqn_cumulative_reward.png")
+        plt.close()
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(self.training_losses, label="DQN Loss")
+        plt.xlabel("Training Step")
+        plt.ylabel("Loss")
+        plt.title("DQN Training Stability")
+        plt.legend()
+        plt.savefig("plots/dqn_training_stability.png")
+        plt.close()
 
 if __name__ == "__main__":
-    # Train DQN model
-    dqn_model = train_dqn()
-    
-    # Evaluate model
-    eval_env = BeehiveManagementEnv(num_hives=4)
-    results = evaluate_dqn(dqn_model, eval_env)
+    trainer = DQNTraining()
+    model = trainer.train()
+    results = trainer.evaluate(model)
+    trainer.record_gif(model, episodes=3)
+    trainer.plot_results()
     
     print("\nDQN Evaluation Results:")
     print(f"Mean Reward: {results['mean_reward']:.2f} ± {results['std_reward']:.2f}")
