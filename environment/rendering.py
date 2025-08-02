@@ -9,7 +9,7 @@ import sys
 from custom_env import BeehiveManagementEnv, HiveState, ActionType
 import colorsys
 
-# Initialize Pygame
+# Initialize Pygame (main.py handles this, but keep for standalone testing)
 pygame.init()
 
 class Colors:
@@ -37,6 +37,7 @@ class Colors:
     TEXT_SECONDARY = (200, 200, 200)
     BUTTON_NORMAL = (70, 130, 180)
     BUTTON_HOVER = (100, 149, 237)
+    ERROR_RED = (255, 50, 50)  # For debug overlay
 
     # Action visualization
     ACTION_MOVE = (255, 165, 0)       # Orange
@@ -398,36 +399,64 @@ class BeehiveRenderer:
         season_text = self.font_medium.render(season_names[season_index], True, Colors.TEXT_PRIMARY)
         self.screen.blit(season_text, (self.world_panel_width - 150, 22))
 
+    def draw_debug_overlay(self, messages: List[str]):
+        """Draw debug messages on-screen"""
+        y_offset = self.top_panel_height + 10
+        for msg in messages:
+            text = self.font_medium.render(msg, True, Colors.ERROR_RED)
+            self.screen.blit(text, (10, y_offset))
+            y_offset += 20
+
     def render(self, env: BeehiveManagementEnv, last_action: Optional[int] = None,
                last_reward: float = 0) -> np.ndarray:
         """Main render function"""
         self.screen.fill(Colors.BACKGROUND)
 
+        # Validate environment state
+        debug_messages = []
+        hives = getattr(env, 'hives', [])
+        selected_hive_id = getattr(env, 'selected_hive_id', -1)
+        if not hives:
+            debug_messages.append("Error: No hives in environment")
+            print("Warning: No hives in environment")
+        if selected_hive_id < 0 or selected_hive_id >= len(hives):
+            debug_messages.append(f"Error: Invalid selected_hive_id: {selected_hive_id}")
+            print(f"Warning: Invalid selected_hive_id: {selected_hive_id}, Hives: {len(hives)}")
+
         self.draw_top_panel(env)
         self.draw_background_environment(env)
 
-        for i, hive in enumerate(env.hives):
-            selected = (i == env.selected_hive_id)
+        for i, hive in enumerate(hives):
+            selected = (i == selected_hive_id)
             self.draw_hive(hive, selected)
 
-        self.draw_bee_particles(env.hives)
+        self.draw_bee_particles(hives)
         self.draw_action_effects()
 
-        if last_action is not None and env.selected_hive_id < len(env.hives):
-            self.draw_action_effect(last_action, env.hives[env.selected_hive_id])
+        if last_action is not None and selected_hive_id < len(hives):
+            self.draw_action_effect(last_action, hives[selected_hive_id])
 
         self.draw_info_panel(env, last_action, last_reward)
+
+        # Draw debug overlay if there are issues
+        if debug_messages:
+            self.draw_debug_overlay(debug_messages)
 
         pygame.display.flip()
         self.clock.tick(30)
 
         self.time_step += 1
 
-        return pygame.surfarray.array3d(self.screen).transpose((1, 0, 2))
+        frame = pygame.surfarray.array3d(self.screen).transpose((1, 0, 2))
+        if np.mean(frame) < 10:  # Account for dark background (34, 49, 63)
+            print(f"Warning: Rendered frame is nearly black (mean: {np.mean(frame):.2f})")
+        return frame
 
     def close(self):
         """Clean up resources"""
-        pygame.quit()
+        if hasattr(self, 'screen') and self.screen is not None:
+            pygame.display.quit()
+            self.screen = None
 
 if __name__ == "__main__":
     env = BeehiveManagementEnv(num_hives=4, render_mode="human")

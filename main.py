@@ -1,104 +1,136 @@
+import sys
+import os
+import time
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'training')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'environment')))
 import gymnasium as gym
 import numpy as np
-import imageio
-import matplotlib.pyplot as plt
-from stable_baselines3 import DQN, PPO, A2C
-from custom_env import BeehiveManagementEnv
+import torch
+from pg_training import A2CTraining
+from custom_env import BeehiveManagementEnv, ActionType
 from rendering import BeehiveRenderer
-from dqn_training import DQNTraining
-from pg_training import REINFORCE, PPOTraining, A2CTraining
-import os
+import pygame
+from stable_baselines3 import A2C
 
-def record_episode(model, env, renderer, filename="episode.mp4", max_steps=1000, model_type="sb3"):
-    """Record a single episode video"""
-    frames = []
-    obs, _ = env.reset()
-    done = False
-    steps = 0
-    total_reward = 0
+def simulate_agent(trainer, model, model_name, episodes=3, max_steps=1000):
+    """Simulate the agent running in the environment with real-time rendering and metrics"""
+    env = BeehiveManagementEnv(num_hives=4, render_mode="human")
+    
+    # Use trainer's renderer if available, otherwise create a new one
+    renderer = getattr(trainer, 'renderer', None)
+    if renderer is None:
+        print(f"Warning: {model_name} trainer has no renderer. Creating new BeehiveRenderer.")
+        renderer = BeehiveRenderer(width=1200, height=800)
+    
+    try:
+        for ep in range(episodes):
+            obs, _ = env.reset()
+            done = False
+            steps = 0
+            total_reward = 0
 
-    while not done and steps < max_steps:
-        if model_type == "reinforce":
-            obs_tensor = torch.FloatTensor(obs).to(model.device)
-            action_probs = model.policy(obs_tensor)
-            action = Categorical(action_probs).sample().item()
-        else:
-            action, _ = model.predict(obs, deterministic=True)
-        obs, reward, terminated, truncated, _ = env.step(action)
-        total_reward += reward
-        frame = renderer.render(env, action, reward)
-        frames.append(np.transpose(frame, (1, 0, 2)))
-        steps += 1
-        done = terminated or truncated
+            # Debug: Log initial environment state
+            hives = getattr(env, 'hives', [])
+            selected_hive_id = getattr(env, 'selected_hive_id', -1)
+            print(f"\n{model_name} Episode {ep+1} - Initial state:")
+            print(f"Hives: {len(hives)}, Selected Hive ID: {selected_hive_id}")
+            for i, hive in enumerate(hives):
+                print(f"[Hive {i}] Bees: {hive.bee_population:>6} | Health: {hive.health_score:5.1f} | Food: {hive.food_stores:4.1f}kg")
+            if not hives or selected_hive_id < 0 or selected_hive_id >= len(hives):
+                print(f"Error: Invalid environment state in {model_name} episode {ep+1}")
+                continue
 
-    writer = imageio.get_writer(filename, fps=30, macro_block_size=1)
-    for frame in frames:
-        writer.append_data(frame.astype(np.uint8))
-    writer.close()
-    print(f"Video saved as {filename}, Total Reward: {total_reward:.2f}")
+            while not done and steps < max_steps:
+                # Get action from model
+                action, _ = model.predict(obs, deterministic=True)
+                action_name = ActionType(action).name
+                
+                # Take step
+                obs, reward, terminated, truncated, info = env.step(action)
+                total_reward += reward
+                
+                # Render
+                frame = renderer.render(env, action, reward)
+                if np.mean(frame) < 10:  # Account for Colors.BACKGROUND (34, 49, 63)
+                    print(f"Warning: Frame {steps} in {model_name} episode {ep+1} is nearly black (mean: {np.mean(frame):.2f})")
+                
+                # Log step details
+                selected_hive = env.hives[env.selected_hive_id]
+                print(f"\nStep {steps+1}:")
+                print(f"Action: {action_name}")
+                print(f"Reward: {reward:.2f} (Total: {total_reward:.2f})")
+                print(f"Hive {env.selected_hive_id}: Bees: {selected_hive.bee_population:>6} "
+                      f"| Health: {selected_hive.health_score:5.1f} "
+                      f"| Food: {selected_hive.food_stores:4.1f}kg")
+                print(f"Reward Components: { {k: f'{v:.2f}' for k, v in info['reward_components'].items()} }")
+                print(f"Health Δ: {info['health_delta']:.1f}, "
+                      f"Population Δ: {info['population_delta']:.0f}, "
+                      f"Food Δ: {(selected_hive.food_stores - env.hives[env.selected_hive_id].food_stores):.1f}")
 
-def main():
-    """Main entry point for running RL experiments"""
-    env = Monitor(BeehiveManagementEnv(num_hives=4, render_mode="human"))
-    renderer = BeehiveRenderer(width=1200, height=800)
+                steps += 1
+                done = terminated or truncated
+                time.sleep(0.033)  # 30 FPS for stable rendering
 
-    os.makedirs("models/dqn", exist_ok=True)
-    os.makedirs("models/pg", exist_ok=True)
-    os.makedirs("videos", exist_ok=True)
-    os.makedirs("plots", exist_ok=True)
+            # Episode summary
+            print(f"\nEpisode {ep+1} Summary:")
+            print(f"Steps: {steps}, Total Reward: {total_reward:.2f}")
+            print(f"Final Hive States:")
+            for i, hive in enumerate(env.hives):
+                status = "ALIVE" if hive.bee_population > 1000 else "DEAD"
+                print(f"[Hive {i}] {status:<6} | Bees: {hive.bee_population:>6} "
+                      f"| Health: {hive.health_score:5.1f} | Food: {hive.food_stores:4.1f}kg")
 
-    # Train models
-    print("Training DQN...")
-    dqn_trainer = DQNTraining()
-    dqn_model = dqn_trainer.train()
-    dqn_results = dqn_trainer.evaluate(dqn_model)
-    dqn_trainer.record_gif(dqn_model)
+    finally:
+        if renderer is not trainer.renderer:
+            renderer.close()
+        env.close()
 
-    print("\nTraining Policy Gradient Models...")
-    best_pg_name, pg_models = compare_models()
+def run_best_model():
+    """Load the best A2C model and simulate it in the environment"""
+    pygame.init()  # Initialize Pygame
+    model_name = "A2C"
+    model_path = "models/pg/best_model.zip"
+    
+    print(f"\nLoading best model: {model_name} from {model_path}")
+    
+    # Initialize environment and trainer
+    try:
+        env = BeehiveManagementEnv(num_hives=4, render_mode="human")
+        trainer = A2CTraining()  # Assumes A2CTraining initializes renderer
+    except Exception as e:
+        print(f"Error initializing environment or trainer: {e}")
+        pygame.quit()
+        return
 
-    # Evaluate models
-    ppo_results = evaluate_model(pg_models["PPO"], env)
-    a2c_results = evaluate_model(pg_models["A2C"], env)
-    reinforce_results = REINFORCE(Monitor(BeehiveManagementEnv(num_hives=4, render_mode="human"))).evaluate(pg_models["REINFORCE"])
+    # Load model
+    try:
+        model = A2C.load(model_path, env=env)
+        print(f"Successfully loaded {model_name} model from {model_path}")
+    except Exception as e:
+        print(f"Error loading {model_name} model from {model_path}: {e}")
+        trainer.close()
+        pygame.quit()
+        return
 
-    # Compare results
-    results = {
-        "DQN": dqn_results,
-        "PPO": ppo_results,
-        "A2C": a2c_results,
-        "REINFORCE": reinforce_results
-    }
-
-    print("\n=== Model Comparison ===")
-    best_model_name = max(results, key=lambda k: results[k]["mean_reward"])
-    print(f"Best Model: {best_model_name}")
-    for name, result in results.items():
-        print(f"{name}: Mean Reward = {result['mean_reward']:.2f} ± {result['std_reward']:.2f}, "
-              f"Mean Episode Length = {result['mean_length']:.2f}")
-
-    # Plot combined cumulative rewards
-    plt.figure(figsize=(10, 5))
-    plt.plot(np.cumsum(dqn_trainer.episode_rewards), label="DQN")
-    plt.plot(np.cumsum(PPOTraining().episode_rewards), label="PPO")
-    plt.plot(np.cumsum(A2CTraining().episode_rewards), label="A2C")
-    plt.plot(np.cumsum(REINFORCE(Monitor(BeehiveManagementEnv(num_hives=4))).episode_rewards), label="REINFORCE")
-    plt.xlabel("Episode")
-    plt.ylabel("Cumulative Reward")
-    plt.title("All Models Cumulative Reward")
-    plt.legend()
-    plt.savefig("plots/all_models_cumulative_reward.png")
-    plt.close()
-
-    # Record videos for best model
-    print(f"\nRecording videos for best model ({best_model_name})...")
-    best_model = dqn_model if best_model_name == "DQN" else pg_models[best_model_name]
-    model_type = "reinforce" if best_model_name == "REINFORCE" else "sb3"
-    for i in range(3):
-        record_episode(best_model, env, renderer, f"videos/best_model_{best_model_name}_episode_{i+1}.mp4", model_type=model_type)
-
-    renderer.close()
-    env.close()
+    # Simulate the model
+    try:
+        simulate_agent(trainer, model, model_name, episodes=3, max_steps=1000)
+    except Exception as e:
+        print(f"Error running {model_name} model: {e}")
+    
+    # Cleanup
+    try:
+        trainer.close()
+    except Exception as e:
+        print(f"Error closing trainer: {e}")
+    finally:
+        pygame.quit()
 
 if __name__ == "__main__":
-    main()
+    try:
+        run_best_model()
+        print("\nBest model simulation completed successfully!")
+    except Exception as e:
+        print(f"Error in main: {e}")
+    finally:
+        pygame.quit()  # Ensure Pygame cleanup
