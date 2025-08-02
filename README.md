@@ -1,63 +1,81 @@
-# Raini_Benaiah_rl_summative
 
+# AsaliAsPossible - Beehive Management with Reinforcement Learning
 
-AsaliAsPossible
-AsaliAsPossible is a reinforcement learning (RL) project that optimizes beehive management using the Proximal Policy Optimization (PPO) algorithm. The project simulates managing beehives in a custom Gymnasium environment (BeehiveManagementEnv), where an RL agent maximizes rewards by performing actions like inspecting hives, treating diseases/pests, harvesting honey, and managing resources. The PPO model, trained with Stable Baselines3, achieves a mean reward of 930.93 ± 100.95, outperforming other algorithms like A2C.
-Project Overview
-The goal of AsaliAsPossible is to develop an RL agent that efficiently manages beehives to maximize honey production and hive health while minimizing disease and pest impacts. Key components include:
+**Project by:** Raini Benaiah  
+**Email:** b.raini@alustudent.com
 
-Environment: BeehiveManagementEnv (in environment/custom_env.py) simulates four beehives with attributes like honey, health, disease, and pests.
-Agent: A PPO model (models/pg/better_model.zip) trained to select optimal actions based on hive states.
-Visualization: Real-time Pygame rendering (environment/rendering.py) to observe the agent’s actions.
-Training: Comparison of PPO and A2C (training/compare_a2c_ppo.py), with PPO as the best performer.
+AsaliAsPossible is a reinforcement learning project focused on optimizing beehive management using the Proximal Policy Optimization (PPO) algorithm. The project simulates hive dynamics in a custom Gymnasium environment, where an RL agent learns to maximize honey production, maintain hive health, and mitigate diseases and pests.
 
-Environment and Agent
-BeehiveManagementEnv
+## Project Overview
 
-Observation Space: A vector per hive (e.g., honey, health, disease, pest levels), represented as a Box space (e.g., [0.1, 0.8, 0.0, 0.2, 0.3]...).
-Action Space: Discrete actions (8 total):
-0: No Action
-1: Inspect Hive (monitor state, small reward)
-2: Treat Disease (reduce disease, avoid penalties)
-3: Treat Pests (reduce pests)
-4: Harvest Honey (high reward when honey is sufficient)
-5: Feed Bees (maintain health/resources)
-6: Expand Hive (increase capacity)
-7: Reduce Hive (manage resources)
+The aim is to train an agent that takes intelligent actions such as inspecting hives, treating issues, harvesting honey, and managing resources effectively.
 
+### Key Features
 
-Rewards: Positive rewards for beneficial actions (e.g., 2.50–3.00 for inspecting/harvesting), penalties for high disease/pests or low health/resources.
-Episode Length: ~366 steps, terminating on fixed duration or critical hive failure.
+- **Environment:** `BeehiveManagementEnv` simulates four hives with state features like honey levels, health, disease, and pest presence.
+- **Agent:** A PPO model trained using Stable Baselines3 to act optimally.
+- **Visualization:** Real-time rendering using Pygame for interactive hive monitoring.
+- **Training Comparison:** PPO vs A2C algorithms.
 
-PPO Agent
+## Environment and Agent Details
 
-Trained for 370,000 timesteps (stopped early when mean reward reached 1046.30 > 1000).
-Achieves mean reward of 930.93 ± 100.95, with episode rewards of 915.20, 915.34, and 1057.78.
-Uses a deterministic policy during evaluation to select optimal actions (e.g., harvesting when honey levels are high).
+### BeehiveManagementEnv
 
-Setup Instructions
+- **Observation Space:** Vector of hive attributes (e.g., `[0.1, 0.8, 0.0, 0.2, 0.3]`).
+- **Action Space (8 Discrete Actions):**
+  0. No Action  
+  1. Inspect Hive  
+  2. Treat Disease  
+  3. Treat Pests  
+  4. Harvest Honey  
+  5. Feed Bees  
+  6. Expand Hive  
+  7. Reduce Hive
 
-Clone the Repository:
+- **Rewards:**  
+  - +2.5–3.0 for useful actions  
+  - Penalties for high disease, pest infestation, and poor hive health
+
+- **Episode Length:** ~366 steps
+
+### PPO Agent
+
+- **Training Steps:** 370,000  
+- **Performance:**  
+  - Mean Reward: 930.93 ± 100.95  
+  - Best Episode: 1057.78
+- **Evaluation:** Deterministic policy to select optimal actions
+
+## Setup Instructions
+
+### 1. Clone the Repository
+
+```bash
 git clone https://github.com/RainiBenaiah/Raini_Benaiah_rl_summative.git
 cd Raini_Benaiah_rl_summative
+```
 
+### 2. Install Dependencies
 
-Install Dependencies:
+Ensure you have Python 3.8+
 
-Ensure Python 3.8+ is installed.
-Install requirements:pip install -r requirements.txt
+```bash
+pip install -r requirements.txt
+```
 
+If `requirements.txt` is missing:
 
-If requirements.txt is missing, install:pip install gymnasium numpy torch stable-baselines3 pygame
+```bash
+pip install gymnasium numpy torch stable-baselines3 pygame
+```
 
+## Project Structure
 
-
-
-Verify Project Structure:
+```
 Raini_Benaiah_rl_summative/
 ├── environment/
-│   ├── custom_env.py
-│   ├── rendering.py
+│   ├── custom_env.py           # Environment logic
+│   ├── rendering.py            # Pygame rendering
 ├── training/
 │   ├── dqn_training.py
 │   ├── pg_training.py
@@ -68,104 +86,73 @@ Raini_Benaiah_rl_summative/
 │   │   ├── better_model.zip
 │   │   ├── cpo_model.zip
 │   │   ├── ppo_model.zip
-├── main.py
+├── main.py                     # Main evaluation script
 ├── requirements.txt
 ├── README.md
+```
 
+## Running the Project
 
-
-Running the Project
 To observe the PPO agent in action:
 
-Navigate to the project root:
+```bash
 cd Raini_Benaiah_rl_summative
-
-
-Run main.py:
 python3 main.py
+```
+
+### What You’ll See
+
+- **Console Logs:**
+  - Step-wise actions with rewards
+  - Episode summaries (reward, steps, time)
+
+- **Pygame Window (1200x800):**
+  - 4 hives with visual indicators
+  - Actions and rewards shown
+  - Real-time hive state updates
+
+## Results
+ ## There are other models like DQN ans Reinforcement but this two were outstanding
+### PPO vs A2C Performance
+
+| Metric         | PPO                    | A2C                   |
+|----------------|------------------------|------------------------|
+| Mean Reward    | 930.93 ± 100.95        | -735.17 ± 626.19      |
+| Best Episode   | 1057.78                | N/A                   |
+| Episode Length | ~366 steps             | ~366 steps            |
+
+### Agent Behavior Insights
+
+- Inspects hives for low-reward monitoring
+- Treats diseases/pests promptly
+- Harvests only when honey is abundant
+- Maintains hive strength via feeding and expansion
+
+## Troubleshooting
+
+- **Model Load Errors:**
+  ```bash
+  ls models/pg
+  python3 training/compare_a2c_ppo.py
+  ```
+
+- **No Visuals (Pygame):**
+  ```bash
+  pip install pygame
+  ```
+  Ensure `render_mode="human"` is set in `custom_env.py`.
+
+- **Low Rewards (<900)?**
+  Modify PPO training hyperparameters, for example:
+  ```python
+  "ent_coef": 0.05
+  ```
+
+## Contact
+
+For questions or contributions, reach out to:
+
+**Raini Benaiah**  
+Email: b.raini@alustudent.com
 
 
-What to Expect:
-
-Console Output:
-Lists model files in models/pg/ (e.g., better_model.zip).
-Confirms model loading (e.g., Successfully loaded model from models/pg/better_model.zip).
-Logs 3 episodes with step-by-step details:
-Step number, action (e.g., “Harvest Honey”), reward (e.g., 2.50–3.00), total reward, observation (e.g., [0.1, 0.8, 0.0, 0.2, 0.3]...).
-Episode summaries with total rewards (915–1057), steps (366), and time (~1.5s).
-
-
-
-
-Pygame Window (1200x800):
-Displays four hives with visual indicators (e.g., bars for honey/health, colors for disease/pests).
-Shows actions (e.g., “Harvest Honey” text/icon) and rewards.
-Updates each step to reflect hive state changes (e.g., honey bar decreases after harvesting).
-
-
-
-
-
-Results
-
-PPO Performance (from compare_a2c_ppo.py):
-Mean Reward: 930.93 ± 100.95
-Episode Length: ~366 steps
-Episode Rewards: 915.20, 915.34, 1057.78
-Outperforms A2C (Mean Reward: -735.17 ± 626.19)
-
-
-Agent Behavior:
-Maximizes rewards by:
-Inspecting hives to monitor states (small rewards, e.g., 2.50).
-Treating diseases/pests to avoid penalties.
-Harvesting honey at optimal times (high rewards, e.g., 3.00).
-Feeding/expanding hives to maintain health/resources.
-
-
-Best episode (1057.78) demonstrates effective action sequencing for high honey production and hive health.
-
-
-
-Project Structure
-
-environment/custom_env.py: Defines BeehiveManagementEnv with observation/action spaces and reward logic.
-environment/rendering.py: Implements BeehiveRenderer for Pygame visualization.
-training/compare_a2c_ppo.py: Trains and compares A2C and PPO, saving models to models/pg/.
-training/dqn_training.py: Trains DQN models (saved to models/dqn/).
-training/pg_training.py: Trains policy gradient models (e.g., PPO).
-main.py: Loads PPO model (better_model.zip) and runs 3 episodes, logging actions and rewards.
-models/pg/: Contains PPO models (better_model.zip, cpo_model.zip, ppo_model.zip).
-requirements.txt: Lists project dependencies.
-You can also try different models saved in the models folder and compare them.
-Troubleshooting
-
-Model Loading Error:
-
-Verify model files:ls models/pg
-
-
-If missing, re-run training:python3 training/compare_a2c_ppo.py
-
-
-Update model_paths in main.py if paths differ.
-
-
-No Pygame Visuals:
-
-Ensure Pygame is installed:pip install pygame
-
-
-Verify render_mode="human" in custom_env.py.
-
-
-Low Rewards:
-
-If rewards are low (<900), re-run compare_a2c_ppo.py with:"ent_coef": 0.05  # In PPOTraining
-
-
-
-
-
-Contact
-For issues, contact Raini Benaiah (b.raini@alustudent.com
