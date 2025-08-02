@@ -9,7 +9,7 @@ import sys
 from custom_env import BeehiveManagementEnv, HiveState, ActionType
 import colorsys
 
-# Initialize Pygame (main.py handles this, but keep for standalone testing)
+# Initialize Pygame (thou main.py will handles this, let's keep for standalone testing)
 pygame.init()
 
 class Colors:

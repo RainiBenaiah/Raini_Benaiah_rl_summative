@@ -45,7 +45,7 @@ class RandomAgentDemo:
         
         season_names = ['Spring', 'Summer', 'Autumn', 'Winter']
         season_value = info.get('season', 0)
-        season_index = min(3, max(0, season_value))  # Ensure valid index
+        season_index = min(3, max(0, season_value))  # valid index
         
         print(f"\n Step {self.total_steps} Analysis:")
         print(f"   Action: {action_type.name.replace('_', ' ')}")
@@ -216,7 +216,6 @@ class RandomAgentDemo:
         try:
             print(f" Creating GIF with {len(self.frames)} frames...")
             
-            # Resize frames if too large (for file size optimization)
             processed_frames = []
             for frame in self.frames[::2]:  # Take every other frame to reduce size
                 # Convert to uint8 if needed
@@ -282,7 +281,7 @@ class RandomAgentDemo:
         
         print("\n Demo Complete!")
         print(f"   Total demonstration time: ~{self.total_steps * 0.15:.1f} seconds")
-        print(f"   Thank you for watching the Beehive Management RL Environment!")
+        print(f"   Thank you for watching the AsaliAsPossible Demo")
     
     def close(self):
         """Clean up resources"""
@@ -291,7 +290,7 @@ class RandomAgentDemo:
 
 def main():
     """Main demo function"""
-    print(" Beehive Management RL Environment - Random Agent Demo")
+    print(" Beehive Management RL Environment - AsaliAsPossible Agent Demo")
     print(" This demonstrates the environment with random actions (no learning)")
     print("-" * 70)
     

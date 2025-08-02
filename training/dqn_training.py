@@ -31,15 +31,15 @@ class DQNTraining:
     def train(self):
         """Train DQN model"""
         hyperparams = {
-            "learning_rate": 1e-3,
+            "learning_rate": 5e-4,  # Reduced for stability
             "buffer_size": 100000,
-            "batch_size": 64,
+            "batch_size": 128,  # Increased for stable gradients
             "gamma": 0.99,
-            "exploration_fraction": 0.1,
-            "exploration_final_eps": 0.02,
+            "exploration_fraction": 0.2,  # Increased for better exploration
+            "exploration_final_eps": 0.05,  # Increased to avoid premature convergence
             "learning_starts": 1000,
             "target_update_interval": 1000,
-            "train_freq": 4,
+            "train_freq": 8,  # Adjusted for balance
         }
 
         model = DQN(
@@ -56,8 +56,11 @@ class DQNTraining:
                 self.training_losses = []
 
             def _on_step(self) -> bool:
-                if self.locals.get('loss') is not None:
-                    self.training_losses.append(self.locals['loss'])
+                # Access loss from self.locals['infos']
+                if self.locals.get('infos') and isinstance(self.locals['infos'], list):
+                    for info in self.locals['infos']:
+                        if 'loss' in info:
+                            self.training_losses.append(info['loss'])
                 return super()._on_step()
 
         stop_callback = StopTrainingOnRewardThreshold(reward_threshold=500, verbose=1)
@@ -72,7 +75,7 @@ class DQNTraining:
         )
 
         model.learn(
-            total_timesteps=100000,
+            total_timesteps=200000,  # Increased for more training
             callback=eval_callback,
             progress_bar=True
         )
@@ -80,6 +83,8 @@ class DQNTraining:
         model.save(self.save_path)
         self.training_losses = eval_callback.training_losses
         print(f"DQN model saved to {self.save_path}")
+        if not self.training_losses:
+            print("Warning: No training losses logged during training")
 
         return model
 
@@ -137,22 +142,28 @@ class DQNTraining:
     def plot_results(self):
         """Plot cumulative rewards and training stability"""
         plt.figure(figsize=(10, 5))
-        plt.plot(np.cumsum(self.episode_rewards), label="DQN Cumulative Reward")
-        plt.xlabel("Episode")
-        plt.ylabel("Cumulative Reward")
-        plt.title("DQN Cumulative Reward Over Episodes")
-        plt.legend()
-        plt.savefig("plots/dqn_cumulative_reward.png")
-        plt.close()
+        if self.episode_rewards:
+            plt.plot(np.cumsum(self.episode_rewards), label="DQN Cumulative Reward")
+            plt.xlabel("Episode")
+            plt.ylabel("Cumulative Reward")
+            plt.title("DQN Cumulative Reward Over Episodes")
+            plt.legend()
+            plt.savefig("plots/dqn_cumulative_reward.png")
+            plt.close()
+        else:
+            print("Warning: No episode rewards available for cumulative reward plot")
 
         plt.figure(figsize=(10, 5))
-        plt.plot(self.training_losses, label="DQN Loss")
-        plt.xlabel("Training Step")
-        plt.ylabel("Loss")
-        plt.title("DQN Training Stability")
-        plt.legend()
-        plt.savefig("plots/dqn_training_stability.png")
-        plt.close()
+        if self.training_losses:
+            plt.plot(self.training_losses, label="DQN Loss")
+            plt.xlabel("Training Step")
+            plt.ylabel("Loss")
+            plt.title("DQN Training Stability")
+            plt.legend()
+            plt.savefig("plots/dqn_training_stability.png")
+            plt.close()
+        else:
+            print("Warning: No training losses available for stability plot")
 
 if __name__ == "__main__":
     trainer = DQNTraining()

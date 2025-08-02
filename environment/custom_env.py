@@ -151,7 +151,7 @@ class BeehiveManagementEnv(gym.Env):
         self.world_size = 100
         self.base_location = (50, 50)
         
-        # Define action space - DISCRETE actions (80 possible actions)
+        # Define action space - DISCRETE actions (80 possible actions(for now))
         self.action_space = spaces.Discrete(80)
         
         # Define observation space - continuous values for each hive state
@@ -219,7 +219,7 @@ class BeehiveManagementEnv(gym.Env):
             temperature=random.uniform(15, 35),
             humidity=random.uniform(0.4, 0.8),
             nectar_availability=random.uniform(0.2, 0.8),
-            season=min(3, max(0, self.current_step // 91)),  # Clamp to valid range 0-3
+            season=min(3, max(0, self.current_step // 91)),
             weather_risk=random.uniform(0, 0.6),
             predator_risk=random.uniform(0, 0.3)
         )
